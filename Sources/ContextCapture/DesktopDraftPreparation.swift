@@ -10,8 +10,7 @@ extension DesktopAccessibilityProbe {
         preparedText = nil; preparedNonce = nil; includedIDs = []
         message = "正在从当前编辑稿筛选明确引用的素材，只在本机准备预览。"
         let root = root, prompt = sourcePrompt, materials = sourceMaterials, receiptOnly = receiptOnly
-        let project = Bundle.main.object(forInfoDictionaryKey:"ProjectRoot") as? String ?? ""
-        let python = Bundle.main.object(forInfoDictionaryKey:"PythonExecutable") as? String ?? ""
+        let runtime = ApplicationRuntime.current
         DispatchQueue.global(qos:.userInitiated).async {
             let outcome = Result { () -> (String,[String],String) in
                 let folder = root.appendingPathComponent("HandoffPreviews/"+UUID().uuidString)
@@ -24,8 +23,7 @@ extension DesktopAccessibilityProbe {
                     throw NSError(domain:"DraftPreparation",code:1,userInfo:[NSLocalizedDescriptionKey:"无法创建预览快照"])
                 }
                 try data.write(to:input)
-                let process = Process(); process.executableURL = URL(fileURLWithPath:python)
-                process.arguments = [URL(fileURLWithPath:project).appendingPathComponent("tools/prepare_desktop_draft.py").path,input.path,output.path]
+                let process = try runtime.pythonProcess(script:"prepare_desktop_draft.py",arguments:[input.path,output.path])
                 process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
                 try process.run()
                 let deadline = ProcessInfo.processInfo.systemUptime + 5

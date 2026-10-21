@@ -93,8 +93,7 @@ extension SessionModel {
     }
     func refine() {
         guard phase == "reviewing", !refining, let directory else { return }
-        guard let executable = Bundle.main.object(forInfoDictionaryKey:"CodexExecutable") as? String,
-              FileManager.default.isExecutableFile(atPath:executable) else { refineNote = "未找到 Codex CLI，当前仍为本地草稿。"; return }
+        guard let executable = ApplicationRuntime.current.codexURL?.path else { refineNote = "未找到 Codex 组件，请打开安装与连接向导；当前草稿已保留。"; return }
         let snapshot = prompt, session = sessionID, context = refinementContext()
         guard !context.speech.isEmpty else { refineNote = "尚无任务表达，请先补充正文。"; return }
         let job = RefinementJob(); refinementJob = job

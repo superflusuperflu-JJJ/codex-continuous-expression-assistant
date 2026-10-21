@@ -12,6 +12,9 @@ import AVFoundation
             exit(Int32(SessionModel.compositionSample(executable:CommandLine.arguments[index+1],output:URL(fileURLWithPath:CommandLine.arguments[index+2]),source:source)))
         }
         if CommandLine.arguments.contains("--self-test") { exit(Int32(SessionModel.integrationChecks())) }
+        if CommandLine.arguments.contains("--diagnose-installation") {
+            exit(Int32(InstallationDiagnostic.run()))
+        }
         if CommandLine.arguments.contains("--diagnose") {
             Task {
                 let supported = await SpeechTranscriber.supportedLocales
@@ -42,6 +45,21 @@ import AVFoundation
             RunLoop.main.run(); return
         }
         let app = NSApplication.shared
+        if ApplicationRuntime.current.portable {
+            let sameID = Bundle.main.bundleIdentifier ?? "local.contextcapture.prototype"
+            if NSRunningApplication.runningApplications(withBundleIdentifier:sameID).contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }) {
+                let alert = NSAlert();alert.messageText = "另一个 Codex连续表达助手正在运行"
+                alert.informativeText = "请先退出另一个副本，再启动此版本。当前运行的应用、权限和表达内容不会被替换。"
+                alert.runModal();return
+            }
+            if TrialLaunchGuard.installationRequired(path:Bundle.main.bundleURL.path,volumeReadOnly:(try? Bundle.main.bundleURL.resourceValues(forKeys:[.volumeIsReadOnlyKey]).volumeIsReadOnly) == true) {
+                let alert = NSAlert();alert.messageText = "请先安装到应用程序"
+                alert.informativeText = "将 Codex连续表达助手拖入「应用程序」文件夹，推出安装磁盘，再打开已安装的应用。"
+                alert.addButton(withTitle:"打开应用程序文件夹");alert.addButton(withTitle:"退出")
+                if alert.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.open(URL(fileURLWithPath:"/Applications")) }
+                return
+            }
+        }
         let delegate = PrototypeDelegate()
         app.delegate = delegate
         app.setActivationPolicy(.regular)
@@ -50,7 +68,7 @@ import AVFoundation
     }
 }
 
-@MainActor final class PrototypeDelegate: NSObject, NSApplicationDelegate {
+@MainActor final class PrototypeDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model = SessionModel()
     var window: NSWindow!
     let edgeSettings = EdgePanelSettings()
@@ -61,11 +79,14 @@ import AVFoundation
     var handler: EventHandlerRef?
     var poll: Timer?
     var fixtureServer: Process?
+    var setupWindow: NSWindow?
+    lazy var setup = TrialSetupModel(session:model)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let python = Bundle.main.object(forInfoDictionaryKey:"PythonExecutable") as? String {
+        if ApplicationRuntime.current.portable { setup.registerBrowser() }
+        if let python = ApplicationRuntime.current.pythonURL?.path {
             let server = Process(); server.executableURL = URL(fileURLWithPath:python)
-            server.arguments = ["-m","http.server","9876","--bind","127.0.0.1","--directory",model.projectRoot.appendingPathComponent("Fixtures").path]
+            server.arguments = ["-B","-E","-s","-m","http.server","9876","--bind","127.0.0.1","--directory",model.projectRoot.appendingPathComponent("Fixtures").path]
             server.standardOutput = FileHandle.nullDevice; server.standardError = FileHandle.nullDevice
             do { try server.run(); fixtureServer = server } catch { model.gap("试用页面服务未启动；仍可使用普通网页。") }
         }
@@ -83,6 +104,7 @@ import AVFoundation
         let appMenu = NSMenu(); appItem.submenu = appMenu
         appMenu.addItem(withTitle:"显示 Codex连续表达助手",action:#selector(show),keyEquivalent:"0").target = self
         appMenu.addItem(withTitle:"设置…",action:#selector(showSettings),keyEquivalent:",").target = self
+        appMenu.addItem(withTitle:"安装与连接向导…",action:#selector(showSetup),keyEquivalent:"").target = self
         appMenu.addItem(withTitle:"退出",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
         let editItem = NSMenuItem(); mainMenu.addItem(editItem)
         let editMenu = NSMenu(title:"编辑"); editItem.submenu = editMenu
@@ -95,6 +117,7 @@ import AVFoundation
         menu.addItem(withTitle:"开始／结束表达  ⌘⇧↩",action:#selector(toggle),keyEquivalent:"").target = self
         menu.addItem(withTitle:"查看 Prompt",action:#selector(show),keyEquivalent:"").target = self
         menu.addItem(withTitle:"设置…",action:#selector(showSettings),keyEquivalent:"").target = self
+        menu.addItem(withTitle:"安装与连接向导…",action:#selector(showSetup),keyEquivalent:"").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle:"退出",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"")
         statusItem.menu = menu
@@ -113,10 +136,26 @@ import AVFoundation
         },1,&type,pointer,&handler)
         let error = RegisterEventHotKey(36,UInt32(cmdKey|shiftKey),EventHotKeyID(signature:0x43545052,id:1),GetApplicationEventTarget(),0,&hotKey)
         if error != noErr { model.gap("全局快捷键 ⌘⇧Return 注册失败，先使用菜单栏开始／结束。") }
+        if ApplicationRuntime.current.portable && !UserDefaults.standard.bool(forKey:"trialSetupCompleted") { showSetup() }
     }
     func applyEdgeMode() {
         if edgeSettings.enabled { window.orderOut(nil); edgePanel?.setEnabled(true); edgePanel?.reveal() }
         else { edgePanel?.setEnabled(false); show() }
+    }
+    @objc func showSetup() {
+        if setupWindow == nil {
+            let panel = NSWindow(contentRect:NSRect(x:0,y:0,width:700,height:720),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+            panel.title = "安装与连接 · Codex连续表达助手";panel.isReleasedWhenClosed = false;panel.delegate = self
+            panel.contentView = NSHostingView(rootView:TrialSetupView(setup:setup,finish:{ [weak self] in
+                guard let self, self.setup.canFinish else { return }
+                UserDefaults.standard.set(true,forKey:"trialSetupCompleted");self.setup.pollingEnabled = false;self.setupWindow?.orderOut(nil);self.show()
+            },viewMain:{ [weak self] in self?.setup.pollingEnabled = false;self?.setupWindow?.orderOut(nil);self?.show() }))
+            panel.center(); setupWindow = panel
+        }
+        setup.pollingEnabled = true;NSApp.activate(ignoringOtherApps:true);setupWindow?.makeKeyAndOrderFront(nil);setup.refresh()
+    }
+    func windowWillClose(_ notification: Notification) {
+        if (notification.object as? NSWindow) === setupWindow { setup.pollingEnabled = false }
     }
     @objc func showSettings() {
         if settingsWindow == nil {
@@ -132,7 +171,7 @@ import AVFoundation
         else { NSApp.activate(ignoringOtherApps:true); window.makeKeyAndOrderFront(nil) }
     }
     func applicationDidBecomeActive(_ notification: Notification) {
-        if edgeSettings.enabled, settingsWindow?.isVisible != true { edgePanel?.reveal() }
+        if edgeSettings.enabled, settingsWindow?.isVisible != true, setupWindow?.isVisible != true { edgePanel?.reveal() }
     }
     @objc func toggle() {
         if model.active { model.finish() }

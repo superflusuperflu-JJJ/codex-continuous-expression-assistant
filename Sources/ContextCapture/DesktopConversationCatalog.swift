@@ -7,16 +7,13 @@ extension DesktopAccessibilityProbe {
         busy = true; humanConfirmed = false; openedForReview = false
         message = "正在读取本机 Codex 对话列表，不加载对话正文。"
         let cursor = more ? nextCursor : nil, root = root
-        let python = Bundle.main.object(forInfoDictionaryKey:"PythonExecutable") as? String ?? ""
-        let project = Bundle.main.object(forInfoDictionaryKey:"ProjectRoot") as? String ?? ""
-        let codex = Bundle.main.object(forInfoDictionaryKey:"CodexExecutable") as? String ?? ""
+        let runtime = ApplicationRuntime.current
         DispatchQueue.global(qos:.userInitiated).async {
             let result = Result { () -> ([DesktopConversation],String?) in
                 let folder = root.appendingPathComponent("Catalog/"+UUID().uuidString)
                 try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
                 let output = folder.appendingPathComponent("page.json")
-                let process = Process(); process.executableURL = URL(fileURLWithPath:python)
-                process.arguments = [URL(fileURLWithPath:project).appendingPathComponent("tools/codex_conversations.py").path,"--codex",codex,"--output",output.path] + (cursor.map { ["--cursor",$0] } ?? [])
+                let process = try runtime.pythonProcess(script:"codex_conversations.py",arguments:["--codex",try runtime.requireCodex().path,"--output",output.path] + (cursor.map { ["--cursor",$0] } ?? []))
                 process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
                 try process.run()
                 let deadline = ProcessInfo.processInfo.systemUptime + 15

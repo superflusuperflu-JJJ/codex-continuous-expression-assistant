@@ -15,6 +15,7 @@ extension SessionModel {
         model.sessionID = "fixture"; model.phase = "capturing"; model.voiceEnabled = false
         var failures = 0, checks = 0
         func check(_ value: Bool, _ name: String) { checks += 1; print("\(value ? "PASS" : "FAIL"): \(name)"); if !value { failures += 1 } }
+        runtimeInstallationChecks(check)
         do {
             let (down,up) = try DesktopMessageSending.submitKeyEvents()
             check(down.type == .keyDown && up.type == .keyUp && down.getIntegerValueField(.keyboardEventKeycode) == 36 && up.getIntegerValueField(.keyboardEventKeycode) == 36,

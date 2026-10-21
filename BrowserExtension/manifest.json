@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "连续表达原型 · 浏览器采集",
+  "name": "Codex连续表达助手 · 网页素材",
   "version": "0.1.2",
   "description": "仅在本地应用开启表达时记录选区；Option 点击图片或链接明确纳入素材。",
   "permissions": [

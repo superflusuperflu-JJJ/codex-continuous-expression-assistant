@@ -13,12 +13,9 @@ struct DesktopSendAttempt {
         return attempt
     }
     func run(_ mode: String) throws -> [String:Any] {
-        let project = Bundle.main.object(forInfoDictionaryKey:"ProjectRoot") as? String ?? ""
-        let python = Bundle.main.object(forInfoDictionaryKey:"PythonExecutable") as? String ?? ""
-        let codex = Bundle.main.object(forInfoDictionaryKey:"CodexExecutable") as? String ?? ""
+        let runtime = ApplicationRuntime.current
         let output = folder.appendingPathComponent(mode+"-"+UUID().uuidString+".json")
-        let process = Process(); process.executableURL = URL(fileURLWithPath:python)
-        process.arguments = [URL(fileURLWithPath:project).appendingPathComponent("tools/desktop_send_receipt.py").path,mode,"--codex",codex,"--state",folder.appendingPathComponent("baseline.json").path,"--journal",journal.path,"--output",output.path,"--thread",threadID,"--sha",sha]
+        let process = try runtime.pythonProcess(script:"desktop_send_receipt.py",arguments:[mode,"--codex",try runtime.requireCodex().path,"--state",folder.appendingPathComponent("baseline.json").path,"--journal",journal.path,"--output",output.path,"--thread",threadID,"--sha",sha])
         process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
         try process.run()
         let deadline = ProcessInfo.processInfo.systemUptime+12

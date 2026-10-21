@@ -66,7 +66,7 @@ func clockNow() -> Double { Double(DispatchTime.now().uptimeNanoseconds) / 1e9 }
     init(rootOverride: URL? = nil, startServices: Bool = true) {
         root = rootOverride ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/ContextCapturePrototype")
         desktopDelivery = DesktopAccessibilityProbe(root:root)
-        projectRoot = URL(fileURLWithPath: Bundle.main.object(forInfoDictionaryKey:"ProjectRoot") as? String ?? FileManager.default.currentDirectoryPath)
+        projectRoot = ApplicationRuntime.current.resourceRoot
         guard startServices else { return }
         do {
             try FileManager.default.createDirectory(at:root, withIntermediateDirectories:true, attributes:[.posixPermissions:0o700])
