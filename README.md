@@ -6,7 +6,7 @@
 
 ## 使用流程
 
-1. 下载安装用户请先按下方“朋友试用版”说明安装；源码开发者打开 `build/Codex连续表达助手.app`。
+1. 下载安装用户请先按下方“试用版”说明安装；源码开发者打开 `build/Codex连续表达助手.app`。
 2. 首次在 `chrome://extensions` 开启开发者模式，加载 `~/Library/Application Support/ContextCapturePrototype/BrowserExtension`；界面提供扩展管理和扩展文件夹入口。
 3. 按系统提示允许麦克风、辅助功能与 Finder 自动化权限。已有固定签名身份的更新沿用该身份，不重置权限。
 4. 按 **⌘⇧Return** 开始表达，边说边操作：网页文字直接拖选；链接与图片按住 **Option 点击**；Finder 中选择文件。
@@ -15,7 +15,7 @@
 
 发送前核对当前对话 ID、输入框、正文和焦点。已有不同草稿时停止，不覆盖、不清空；发送结果不明确时不自动重试。收到与正文匹配的新消息后才显示成功并收起侧栏。正文没有明确用途的素材不发送。
 
-## 朋友试用版
+## 试用版
 
 可从 [GitHub Releases](https://github.com/superflusuperflu-JJJ/codex-continuous-expression-assistant/releases) 下载 **未经过 Apple 公证的预发布测试版**。支持 Apple Silicon、macOS 26+、Chrome 和已登录的 Codex 桌面端；不需要 Python、Swift、Node 或 Homebrew。
 
