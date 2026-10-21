@@ -12,7 +12,7 @@ Keep all current capture, association, editing, semantic organization, choice ca
 
 ## Portable runtime
 
-Bundle the helper scripts, browser extension, test-page assets and a pinned SHA256-verified standalone CPython 3.13 arm64 distribution inside the app. Keep redistribution license files. Production resolves bundle resources first and never falls back to build-machine paths. Local developer builds retain their existing paths via one shared runtime resolver. Discover desktop app through Launch Services and known /Applications and ~/Applications locations; check its embedded native CLI and known user CLI paths. Recheck paths per operation to tolerate desktop updates. Login checks use `login status`, do not read or print credential files. Account login uses the official CLI/browser flow only after an explicit user click, without collecting passwords or account tokens.
+Bundle the helper scripts, browser extension, test-page assets and a pinned SHA256-verified standalone CPython 3.13 arm64 distribution inside the app. The standalone interpreter lives under Contents/Resources/Python; it is not an Apple framework bundle and must not occupy an unstructured directory in Contents/Frameworks. All Mach-O components and the enclosing app are separately sealed. Keep redistribution license files. Production resolves bundle resources first and never falls back to build-machine paths. Local developer builds retain their existing paths via one shared runtime resolver. Discover desktop app through Launch Services and known /Applications and ~/Applications locations; check its embedded native CLI and known user CLI paths. Recheck paths per operation to tolerate desktop updates. Login checks use `login status`, do not read or print credential files. Account login uses the official CLI/browser flow only after an explicit user click, without collecting passwords or account tokens.
 
 ## Setup and native messaging
 
@@ -36,3 +36,8 @@ Work in an isolated managed worktree and write artifacts only under that worktre
 ## Builder decisions
 
 Keep setup native SwiftUI/AppKit with Chinese plain-language copy. Use the project's executable behavior-check style for Swift tests and unittest for packaging. Use the existing unpacked Chrome extension flow for the first small group, with an in-app step list and direct folder/extension-management buttons; Web Store publication is a later improvement, not a prerequisite for retaining browser features. Avoid new system-wide services or login items. Do not upload diagnostic payloads automatically.
+
+
+## Subsequent release-policy update
+
+The user explicitly chose public GitHub prerelease distribution without Apple notarization. A separate `--unnotarized-trial` packaging mode may publish an ad-hoc-sealed, locally verified bundle with clear manual-open instructions, feature/OS requirements and disclosure that second-Mac acceptance is pending. The formal Developer ID/notarization/clean-Mac gate remains unchanged. Do not label the alternative as notarized, Apple-approved or clean-Mac accepted. Do not disable system-wide protections or automate a user's security override.

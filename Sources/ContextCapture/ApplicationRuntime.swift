@@ -25,7 +25,7 @@ struct ApplicationRuntime {
         portable ? bundleURL.appendingPathComponent("Contents/Resources/Support") : URL(fileURLWithPath:info["ProjectRoot"] as? String ?? FileManager.default.currentDirectoryPath)
     }
     var pythonURL: URL? {
-        let path = portable ? bundleURL.appendingPathComponent("Contents/Frameworks/Python/bin/python3").path : info["PythonExecutable"] as? String
+        let path = portable ? bundleURL.appendingPathComponent("Contents/Resources/Python/bin/python3").path : info["PythonExecutable"] as? String
         return executable(path)
     }
     var desktopURL: URL? {

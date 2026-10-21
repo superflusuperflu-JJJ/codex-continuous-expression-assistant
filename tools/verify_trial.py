@@ -35,7 +35,7 @@ def verify(source):
         # Native checks are isolated in temporary directories and do not post submit events.
         native=subprocess.run([str(binary),'--self-test'],capture_output=True,text=True,check=True)
         print(native.stdout.strip().splitlines()[-1])
-        python=app/'Contents/Frameworks/Python/bin/python3'
+        python=app/'Contents/Resources/Python/bin/python3'
         testroot=base/'helper-checks';(testroot/'Tests').mkdir(parents=True)
         shutil.copytree(app/'Contents/Resources/Support/tools',testroot/'tools')
         for name in ['test_conversations.py','test_desktop_send_receipt.py','test_handoff_package.py','test_handoff_probe.py']:

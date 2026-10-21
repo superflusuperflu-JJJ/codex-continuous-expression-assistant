@@ -44,6 +44,8 @@ class ReleaseChecks(unittest.TestCase):
             info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
             for key in ['ProjectRoot','PythonExecutable','CodexExecutable']:self.assertNotIn(key,info)
             self.assertTrue(info['PortableDistribution'])
+            self.assertTrue((app/'Contents/Resources/Python/bin/python3').is_file())
+            self.assertFalse((app/'Contents/Frameworks/Python').exists())
             self.assertEqual(info['CFBundleShortVersionString'],'0.2.0')
             self.assertEqual(info['TrialVersionLabel'],'0.2.0-trial.1')
             self.assertEqual(info['CFBundleIdentifier'],'local.contextcapture.prototype')
@@ -85,6 +87,21 @@ class ReleaseChecks(unittest.TestCase):
             self.assertNotEqual(first,second)
             (p/'alias').unlink();(p/'alias').symlink_to('helper.py')
             self.assertNotEqual(second,release.bundle_digest(p))
+    def test_unnotarized_trial_requires_seal_and_verified_exact_bundle(self):
+        status={'signed':False,'notarized':False,'cleanMacAccepted':False,'signatureKind':'ad-hoc','sealedBundleSHA256':'a'*64}
+        with self.assertRaises(ValueError):release.approve_unnotarized_trial(status,'a'*64,verified=False)
+        with self.assertRaises(ValueError):release.approve_unnotarized_trial(status,'b'*64,verified=True)
+        with self.assertRaises(ValueError):release.approve_unnotarized_trial({**status,'signatureKind':'none'},'a'*64,verified=True)
+        approved=release.approve_unnotarized_trial(status,'a'*64,verified=True)
+        self.assertTrue(approved['unnotarizedTrialReady'])
+        self.assertFalse(release.publish_ready(approved))
+        self.assertFalse(approved['notarized']);self.assertFalse(approved['cleanMacAccepted'])
+    def test_ad_hoc_seal_does_not_access_developer_certificate(self):
+        arguments=release.adhoc_arguments(Path('/test/example.app'))
+        self.assertEqual(arguments[arguments.index('--sign')+1],'-')
+        self.assertIn('--timestamp=none',arguments)
+        self.assertNotIn('--keychain',arguments)
+        self.assertNotIn('--options',arguments)
     def test_distribution_signer_requires_developer_id(self):
         for value in ['-','ContextCapture Local Development','Apple Development: Example']:
             with self.assertRaises(ValueError):release.validate_identity_name(value)

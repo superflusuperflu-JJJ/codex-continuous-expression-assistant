@@ -6,7 +6,7 @@
 
 ## 使用流程
 
-1. 打开 `build/Codex连续表达助手.app`。
+1. 下载安装用户请先按下方“朋友试用版”说明安装；源码开发者打开 `build/Codex连续表达助手.app`。
 2. 首次在 `chrome://extensions` 开启开发者模式，加载 `~/Library/Application Support/ContextCapturePrototype/BrowserExtension`；界面提供扩展管理和扩展文件夹入口。
 3. 按系统提示允许麦克风、辅助功能与 Finder 自动化权限。已有固定签名身份的更新沿用该身份，不重置权限。
 4. 按 **⌘⇧Return** 开始表达，边说边操作：网页文字直接拖选；链接与图片按住 **Option 点击**；Finder 中选择文件。
@@ -17,7 +17,9 @@
 
 ## 朋友试用版
 
-正在准备独立 DMG 与首次安装向导，功能保持完整。运行时与辅助脚本装进应用，自动发现 Codex 桌面组件。当前尚无开发者签名/公证及另一台 Mac 验收，暂存包不是已可普通分发的正式安装包。参见[安装与试用说明](docs/trial-installation.md)。
+可从 [GitHub Releases](https://github.com/superflusuperflu-JJJ/codex-continuous-expression-assistant/releases) 下载 **未经过 Apple 公证的预发布测试版**。支持 Apple Silicon、macOS 26+、Chrome 和已登录的 Codex 桌面端；不需要 Python、Swift、Node 或 Homebrew。
+
+安装包内含完整功能、运行组件与首次设置向导。首次打开可能需要你亲自在“系统设置 → 隐私与安全性”中选择“仍要打开”，并按向导允许麦克风、辅助功能、Finder 和扩展权限。此版本没有 Developer ID 签名和 Apple 公证，另一台 Mac 的完整实测尚未完成；公司管理的 Mac 可能无法放行。请先阅读[安装与试用说明](docs/trial-installation.md)，再自行决定是否参与测试。
 
 开发者可使用 `python3 tools/release.py prepare` 准备独立暂存包；该命令不安装应用、不注册本机桥接，也不使用本机原型签名身份。
 
@@ -28,7 +30,7 @@
 - 已登录的 Codex 桌面端与 Codex CLI、Chrome。
 - 本机独立的代码签名身份；证书、私钥、钥匙串和真实配置不随源码分发。
 
-构建脚本要求先配置本机签名身份；具体机制见 [架构与权限](docs/architecture.md) 和 `tools/local_signing.py`。不要复制其他机器的私钥或签名配置。此仓库目前是源码发布，尚未提供经过公证的通用安装包。
+构建脚本要求先配置本机签名身份；具体机制见 [架构与权限](docs/architecture.md) 和 `tools/local_signing.py`。不要复制其他机器的私钥或签名配置。仓库提供源码及未公证的早期测试安装包，尚未提供经过公证的通用安装包。
 
 ```sh
 python3 tools/build.py

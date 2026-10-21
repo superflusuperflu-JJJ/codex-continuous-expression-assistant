@@ -4,7 +4,7 @@ func runtimeInstallationChecks(_ check: (Bool, String) -> Void) {
     let temp = FileManager.default.temporaryDirectory.appendingPathComponent("runtime-check-"+UUID().uuidString)
     defer { try? FileManager.default.removeItem(at:temp) }
     let app = temp.appendingPathComponent("移动 app's 目录/助手.app")
-    let python = app.appendingPathComponent("Contents/Frameworks/Python/bin/python3")
+    let python = app.appendingPathComponent("Contents/Resources/Python/bin/python3")
     try! FileManager.default.createDirectory(at:python.deletingLastPathComponent(),withIntermediateDirectories:true)
     FileManager.default.createFile(atPath:python.path,contents:Data("#!/bin/sh\nexit 0\n".utf8),attributes:[.posixPermissions:0o755])
     let runtime = ApplicationRuntime(bundleURL:app,info:["PortableDistribution":true,"ProjectRoot":"/private/build-only","PythonExecutable":"/private/python"],desktopURLs:[])

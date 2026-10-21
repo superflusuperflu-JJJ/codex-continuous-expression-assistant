@@ -69,9 +69,8 @@ def assemble_app(output,binary,runtime,version,build):
     if app.exists():raise FileExistsError('Refusing to mix an existing bundle; use a fresh output directory')
     contents=app/'Contents';(contents/'MacOS').mkdir(parents=True)
     support=contents/'Resources/Support';(support/'tools').mkdir(parents=True)
-    (contents/'Frameworks').mkdir()
     shutil.copy2(binary,contents/'MacOS/ContextCapture');(contents/'MacOS/ContextCapture').chmod(0o755)
-    shutil.copytree(runtime,contents/'Frameworks/Python',symlinks=True)
+    shutil.copytree(runtime,contents/'Resources/Python',symlinks=True)
     for name in HELPERS:shutil.copy2(ROOT/'tools'/name,support/'tools'/name)
     for name in ['BrowserExtension','Fixtures']:
         shutil.copytree(ROOT/name,support/name,ignore=shutil.ignore_patterns('__pycache__','*.pyc','.DS_Store'))
@@ -85,9 +84,9 @@ def assemble_app(output,binary,runtime,version,build):
     licenses=contents/'Resources/Licenses';licenses.mkdir()
     shutil.copytree(LICENSE_ROOT,licenses/'StandalonePython')
     # Standalone Python retains its full standard library, binary dependency licenses and notices.
-    for path in (contents/'Frameworks/Python').rglob('*'):
+    for path in (contents/'Resources/Python').rglob('*'):
         if path.is_file() and not path.is_symlink() and (path.name.startswith('LICENSE') or path.name.startswith('COPYING')):
-            target=licenses/('python-'+str(path.relative_to(contents/'Frameworks/Python')).replace('/','-'))
+            target=licenses/('python-'+str(path.relative_to(contents/'Resources/Python')).replace('/','-'))
             shutil.copy2(path,target)
     (licenses/'RUNTIME-SOURCE.txt').write_text('CPython via Astral python-build-standalone.\nhttps://github.com/astral-sh/python-build-standalone\nPinned download and SHA256: tools/python-runtime.json in the source repository.\n')
     return app
@@ -130,6 +129,24 @@ def macho_paths(app):
     return sorted(paths,key=lambda p:len(p.parts),reverse=True)
 
 
+def adhoc_arguments(path):
+    return ['codesign','--force','--sign','-','--timestamp=none',str(path)]
+
+
+def seal_unnotarized(app):
+    for path in macho_paths(app):run(*adhoc_arguments(path))
+    run(*adhoc_arguments(app))
+    run('codesign','--verify','--deep','--strict',str(app))
+
+
+def approve_unnotarized_trial(status,bundle_sha,verified):
+    if (status.get('notarized') or status.get('signatureKind')!='ad-hoc' or
+        status.get('sealedBundleSHA256')!=bundle_sha or not verified):
+        raise ValueError('Unnotarized trial requires an exact sealed and locally verified bundle')
+    return {**status,'state':'unnotarized-public-prerelease','unnotarizedTrialReady':True,
+            'localPortableVerified':True,'trialBundleSHA256':bundle_sha}
+
+
 def sign_distribution(app,identity,entitlements):
     validate_identity_name(identity)
     for path in macho_paths(app):
@@ -166,9 +183,15 @@ def write_status(output,status):
     (output/'release-status.json').write_text(json.dumps(status,ensure_ascii=False,indent=2)+'\n')
 
 
-def package(output):
+def package(output,allow_unnotarized=False):
     status=json.loads((output/'release-status.json').read_text());app=output/(APP_NAME+'.app')
     if not app.is_dir():raise ValueError('Prepare the complete app first')
+    if allow_unnotarized:
+        run('codesign','--verify','--deep','--strict',str(app))
+        from verify_trial import verify
+        verification=verify(app)
+        status=approve_unnotarized_trial(status,bundle_digest(app),verified=all(verification.get(k) is True for k in ['relocatedRuntime','nativeChecks','packagedHelperChecks','sealedFilesUnchanged']))
+        write_status(output,status)
     if status.get('signed'):run('codesign','--verify','--deep','--strict',str(app))
     if status.get('notarized'):run('xcrun','stapler','validate',str(app))
     if status.get('cleanMacAccepted') and status.get('acceptedBundleSHA256')!=bundle_digest(app):
@@ -178,9 +201,11 @@ def package(output):
     stage.mkdir();shutil.copytree(app,stage/app.name,symlinks=True)
     (stage/'Applications').symlink_to('/Applications')
     shutil.copy2(ROOT/'docs/trial-installation.md',stage/'安装与试用说明.txt')
-    if not publish_ready(status):
+    if allow_unnotarized:
+        (stage/'未经过Apple公证的测试版.txt').write_text('本测试版未经过 Apple 公证，不是 App Store 或 Apple 认证的软件。\n仅完成本机自动检查与搬迁运行，另一台 Mac 的完整安装与功能验收尚未完成。\n功能保持完整；请阅读安装说明，自行决定是否在系统设置中允许打开。\n')
+    elif not publish_ready(status):
         (stage/'尚未通过正式分发验证.txt').write_text('这是完整功能的暂存构建，尚未满足正式分发条件。\n需要 Developer ID 签名、Apple 公证及另一台 Mac 的完整验收。\n不要通过关闭 Gatekeeper 或删除隔离属性来作为正常安装流程。\n')
-    suffix='' if publish_ready(status) else '-STAGING-NOT-FOR-DISTRIBUTION'
+    suffix='-UNNOTARIZED-TEST' if allow_unnotarized else ('' if publish_ready(status) else '-STAGING-NOT-FOR-DISTRIBUTION')
     dmg=output/(APP_NAME+'-'+status['version']+'-arm64'+suffix+'.dmg')
     run('hdiutil','create','-volname',APP_NAME,'-srcfolder',str(stage),'-ov','-format','UDZO',str(dmg))
     (output/(dmg.name+'.sha256')).write_text(hashlib.sha256(dmg.read_bytes()).hexdigest()+'  '+dmg.name+'\n')
@@ -189,19 +214,25 @@ def package(output):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['prepare','sign','notarize','accept-clean-mac','package','status'])
+    parser.add_argument('command',choices=['prepare','sign','seal-unnotarized','notarize','accept-clean-mac','package','status'])
     parser.add_argument('--output',type=Path,default=ROOT/'build/release')
     parser.add_argument('--cache',type=Path,default=ROOT/'build/runtime-cache')
     parser.add_argument('--version',default='0.2.0-trial.1');parser.add_argument('--build',default='1')
     parser.add_argument('--identity');parser.add_argument('--keychain-profile')
     parser.add_argument('--acceptance-report',type=Path)
+    parser.add_argument('--unnotarized-trial',action='store_true',help='Explicitly package a locally verified, unnotarized public prerelease; never marks notarization/clean-Mac acceptance')
     args=parser.parse_args();out=args.output.resolve();app=out/(APP_NAME+'.app')
     if args.command=='prepare':prepare(out,args.cache,args.version,args.build);return
     status=json.loads((out/'release-status.json').read_text())
-    if args.command=='sign':
+    if args.command=='seal-unnotarized':
+        seal_unnotarized(app)
+        status.update(signed=False,notarized=False,cleanMacAccepted=False,signatureKind='ad-hoc',unnotarizedTrialReady=False,
+                      sealedBundleSHA256=bundle_digest(app),state='ad-hoc-sealed-awaiting-local-verification')
+        write_status(out,status)
+    elif args.command=='sign':
         if not args.identity:parser.error('--identity is required; Developer ID Application only')
         sign_distribution(app,args.identity,out/'release-entitlements.plist')
-        status.update(signed=True,notarized=False,cleanMacAccepted=False,state='signed-awaiting-notarization');write_status(out,status)
+        status.update(signed=True,notarized=False,cleanMacAccepted=False,signatureKind='developer-id',unnotarizedTrialReady=False,state='signed-awaiting-notarization');write_status(out,status)
     elif args.command=='notarize':
         if not status.get('signed') or not args.keychain_profile:parser.error('Developer ID signature and existing --keychain-profile required')
         submission=out/'notary-submission.zip'
@@ -217,7 +248,7 @@ def main():
         run('xcrun','stapler','validate',str(app))
         sha=bundle_digest(app)
         write_status(out,accept_clean_mac(status,report,sha))
-    elif args.command=='package':print(package(out))
+    elif args.command=='package':print(package(out,allow_unnotarized=args.unnotarized_trial))
     else:print(json.dumps({**status,'currentBundleSHA256':bundle_digest(app)},ensure_ascii=False,indent=2))
 
 if __name__=='__main__':main()
