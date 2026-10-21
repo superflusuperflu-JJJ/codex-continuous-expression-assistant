@@ -1,0 +1,24 @@
+.build/
+.swiftpm/
+build/
+.DS_Store
+*.log
+.superpowers/
+__pycache__/
+
+# Private runtime data and publication backups must never enter source history.
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.keychain-db
+*.keychain-db-*
+private-key.pem
+keychain-password
+identity.json
+Sessions/
+AXDiagnostics/
+HandoffPreviews/
+docs/private/
+private-archive/
